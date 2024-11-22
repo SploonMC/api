@@ -1,3 +1,4 @@
 name: sploon-bundling-example
 version: 0.0.0
 main: io.github.sploonmc.api.examples.bundling.BundlingExample
+api-version: 1.13

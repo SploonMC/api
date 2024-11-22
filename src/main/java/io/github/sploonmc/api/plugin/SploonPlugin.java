@@ -21,7 +21,7 @@ public abstract class SploonPlugin extends JavaPlugin {
 
     @Override
     public final void onLoad() {
-        SploonBundling.handleBundling(this, this.getFile());
+        SploonBundling.handleBundling(this.getFile());
         this.load();
     }
 }

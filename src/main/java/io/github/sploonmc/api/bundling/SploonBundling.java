@@ -1,15 +1,13 @@
 package io.github.sploonmc.api.bundling;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginDescriptionFile;
-import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,8 +23,9 @@ import java.util.stream.Stream;
 public final class SploonBundling {
 
     private static final Logger LOGGER = LogManager.getLogger("SploonBundling");
-    private static final String SPLOON_BUNDLED = "META-INF/sploon-bundled";
-    private static final String SPLOON_BUNDLED_DIR = "plugins/.sploon-bundled";
+    private static final String SPLOON_BUNDLED = "META-INF/sploon-jij";
+    private static final String SPLOON_BUNDLED_DIR = "plugins/.sploon-jij";
+    private static final String JAR_IN_JAR_FILE_EXTENSION = ".jjar";
 
     private SploonBundling() {
     }
@@ -40,13 +39,12 @@ public final class SploonBundling {
             return resultingFile;
         }
 
-        try (FileOutputStream output = new FileOutputStream(resultingFile)) {
-            byte[] buffer = new byte[8192];
-            int bytesRead;
+        if (!resultingFile.getParentFile().mkdirs() && !resultingFile.getParentFile().exists()) {
+            throw new RuntimeException("Failed creating " + SPLOON_BUNDLED_DIR + " directory. Check your filesystem permissions");
+        };
 
-            while ((bytesRead = stream.read(buffer)) != 1) {
-                output.write(buffer, 0, bytesRead);
-            }
+        try (FileOutputStream output = new FileOutputStream(resultingFile)) {
+            IOUtils.copy(stream, output);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -54,8 +52,15 @@ public final class SploonBundling {
         return resultingFile;
     }
 
-    private static void handleBundlingJar(JavaPlugin originalPlugin, File originalPluginJar, Path jar) {
-        try (JarFile jarFile = new JarFile(jar.toFile())) {
+    private static void handleBundlingJar(Path jar) {
+        File extracted;
+        try {
+            extracted = extractJar(Files.newInputStream(jar), jar.getFileName().toString().replace(JAR_IN_JAR_FILE_EXTENSION, ".jar"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        try (JarFile jarFile = new JarFile(extracted)) {
             JarEntry pluginYml = jarFile.getJarEntry("plugin.yml");
 
             if (pluginYml == null) {
@@ -74,25 +79,24 @@ public final class SploonBundling {
 
             // TODO: handle outdated dependencies
 
-            File extracted = extractJar(Files.newInputStream(jar.toFile().toPath()), jar.getFileName().toString());
-
-            Bukkit.getPluginManager().loadPlugin(extracted);
+            Plugin loaded = Bukkit.getPluginManager().loadPlugin(extracted);
+            loaded.onLoad(); // FIXME: potentially bad? needs further testing
         } catch (Exception exception) {
             throw new RuntimeException(exception);
         }
     }
 
-    public static void handleBundling(JavaPlugin plugin, File jarFile) {
-        try (FileSystem jarFileSystem = FileSystems.newFileSystem(jarFile.toPath(), null);
+    public static void handleBundling(File pluginJarFile) {
+        try (FileSystem jarFileSystem = FileSystems.newFileSystem(pluginJarFile.toPath(), null);
              Stream<Path> entries = Files.find(
                      jarFileSystem.getPath(SPLOON_BUNDLED),
                      1,
-                     (path, _attr) -> path.endsWith(".jar"),
+                     (path, _attr) -> path.getFileName().toString().endsWith(JAR_IN_JAR_FILE_EXTENSION),
                      FileVisitOption.FOLLOW_LINKS
              );
         ) {
             entries.forEach(path -> {
-                handleBundlingJar(plugin, jarFile, path);
+                handleBundlingJar(path);
             });
         } catch (IOException e) {
             throw new RuntimeException(e);
