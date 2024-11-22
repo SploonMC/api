@@ -28,6 +28,14 @@ dependencies {
     sploon.spigot("1.8")
 
     /**
+     * Adds the Minecraft internals (NMS, CraftBukkit) together with its dependencies.
+     * This does not run BuildTools but rather downloads the vanilla server jar and applies our custom
+     * binary patches from https://github.com/SploonMC/patches, which takes up to 10 seconds depending
+     * on your computer. Currently lacking remapping
+     */
+    // sploon.minecraft("1.8")
+
+    /**
      * Shades the Sploon API (this example is from the Sploon API).
      */
     implementation(rootProject)
